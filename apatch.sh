@@ -1,10 +1,7 @@
-#!/bin/bash
-
-gitcmd="git -c commit.gpgsign=false"
-
+#!/usr/bin/env bash
 noapply=1
 isreject=0
-if [[ $1 == "--noapplied" ]]; then
+if [ "$1" == "--noapplied" ]; then
 	noapply=1
 	shift
 fi
@@ -15,24 +12,24 @@ elif [ -z "$1" ] && [ -f .git/rebase-apply/patch ]; then
 	file=".git/rebase-apply/patch"
 	noapply=1
 	isreject=1
+	echo "Using .git/rebase-apply/patch"
 else
 	echo "Please specify a file"
 	exit 1
 fi
 applied=$(echo $file | sed 's/.patch$/-applied\.patch/g')
 if [ "$1" == "--reset" ]; then
-	$gitcmd am --abort
-	$gitcmd reset --hard
-	$gitcmd clean -f
+	git am --abort
+	git reset --hard
+	git clean -f
 	exit 0
 fi
 
-
-(test "$isreject" != "1" && $gitcmd am -3 $file) || (
+(test "$isreject" != "1" && git am -3 $file) || (
 	echo "Failures - Wiggling"
-	$gitcmd reset --hard
-	$gitcmd clean -f
-	errors=$($gitcmd apply --rej $file 2>&1)
+	git reset --hard
+	git clean -f
+	errors=$(git apply --rej $file 2>&1)
 	echo "$errors" >> ~/patch.log
 	export missingfiles=""
 	export summaryfail=""
@@ -47,12 +44,15 @@ fi
 			missingfiles="$missingfiles\n$base"
 		fi
 	done
-	for i in $($gitcmd status --porcelain | awk '{print $2}'); do
+
+	ret=0
+	for i in $(git status --porcelain | awk '{print $2}'); do
 		filedata=$(cat "$i")
 		if [ -f "$file" ] && [[ "$filedata" == *"<<<<<"* ]]; then
 			export summaryfail="$summaryfail\nFAILED TO APPLY: $i"
+			export ret=1
 		else
-			$gitcmd add "$i"
+			git add "$i"
 			export summarygood="$summarygood\nAPPLIED CLEAN: $i"
 		fi
 	done
@@ -67,9 +67,12 @@ fi
 		echo " "
 		echo "===========================";
 	fi
-	$gitcmd status
-	$gitcmd diff
+	git st
+	git diff
+	exit $ret
 )
+ret=$?
 if [[ "$noapply" != "1" ]] && [[ "$file" != *-applied.patch ]]; then
 	mv "$file" "$applied"
 fi
+exit $ret
